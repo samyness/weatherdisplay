@@ -279,7 +279,7 @@ LOCAL void ICACHE_FLASH_ATTR sendHttpRequest(void)
 		if (!config.appid[0] || !config.city[0])
 			return;
 		os_sprintf(httpMsgTxBuf,
-			"GET /data/2.5/forecast?%s=%s&mode=json&cnt=%d&lang=en&APPID=%s HTTP/1.1\r\nHost: %s\r\n\r\n",
+			"GET /data/2.5/forecast?%s=%s&mode=json&cnt=%d&lang=de&APPID=%s HTTP/1.1\r\nHost: %s\r\n\r\n",
 			retain.cityId[0] ? "id" : "q",
 			retain.cityId[0] ? retain.cityId : config.city,
 			FORECAST_HOURLY_SIZE,
