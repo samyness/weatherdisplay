@@ -3,8 +3,8 @@
 
 #include "typedefs.h"
 
-#define WS75_DISP_HEIGHT	640
-#define WS75_DISP_WIDTH		384
+#define WS75_DISP_HEIGHT	800
+#define WS75_DISP_WIDTH		480
 
 
 void ws75Init(void);
