@@ -1,5 +1,8 @@
 # ESP8266 Weather display
 
+Copy of Andrei7c4's Weatherdisplay, added support for Waveshare E-Ink display V2.
+Change to German language later.
+
 This is a simple weather display built with ESP8266 WiFi chip and E ink display. Weather data is gathered from [OpenWeatherMap](http://openweathermap.org) service. Additionally, the device’s internal temperature sensor reading is sent to [ThingSpeak](https://thingspeak.com) service.
 
 Most of the time the device stays in deep sleep mode, consuming only 18 µA. Update operation takes a few seconds, depending on WiFi router, DHCP server and internet connection speed. With 3000 mAh battery and update interval of 15 minutes, the device will last on a single charge for one and a half years.
@@ -9,7 +12,7 @@ Most of the time the device stays in deep sleep mode, consuming only 18 µA. Upd
 - Clone this repository
 - Build and flash the binary
 ```
-$ git clone https://github.com/andrei7c4/weatherdisplay
+$ git clone https://github.com/samyness/weatherdisplay
 $ cd weatherdisplay/app
 $ make all ESP_OPEN_SDK_PATH=/full/path/to/esp-open-sdk
 $ make flash ESP_OPEN_SDK_PATH=/full/path/to/esp-open-sdk ESPPORT=/serial/port/devpath
