@@ -53,9 +53,12 @@ In `Wetterstation/secrets.h`:
 
 ## Hinweise
 
-- **„Rausgestellt“** zählt nur, wenn die Abholung heute oder morgen ist. Ein vergessener Schalter von
-  der letzten Abholung hakt die nächste also nicht ab. Trotzdem sollte eine Automation
-  `input_boolean.muell_rausgestellt` nach der Abholung wieder auf `off` setzen.
+- **Mehrere Abholungen pro Woche:** Die Karte zeigt immer die nächste Abholung; mehrere Müllarten am
+  selben Tag erscheinen zusammen („Papier, Restmüll“). Am Abholtag zählt der heutige Termin nur bis
+  12 Uhr, danach springt die Karte zur nächsten Abholung, auch wenn die schon am nächsten Tag ist.
+- **„Rausgestellt“** zählt nur, wenn der Schalter seit dem Vortag der angezeigten Abholung geändert
+  wurde, z. B. von einer Erinnerungs-Automation, die ihn am Vortag auf `off` setzt und per
+  „Erledigt“-Knopf auf `on`. Ein alter Stand von der letzten Abholung wird ignoriert.
 - Die Anzeige ist ein **Stand alle 30 Minuten**: kurzlebige Ereignisse (z. B. „Waschmaschine fertig“)
   nur verwenden, wenn der Zustand bis zum Ausräumen bestehen bleibt.
 - Neue Hinweise: im Template eine Zeile nach dem Muster

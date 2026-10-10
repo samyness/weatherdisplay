@@ -6,6 +6,8 @@
     Alle Entity-IDs sind Beispiele und müssen an die eigene Installation angepasst werden.
     Nicht vorhandene Entities stören nicht, der jeweilige Teil bleibt dann einfach leer. -#}
 {%- set today = now().date() -%}
+{#- am Abholtag zählt der heutige Termin nur bis 12 Uhr, danach die nächste Abholung -#}
+{%- set first_day = today if now().hour < 12 else today + timedelta(days=1) -%}
 {%- set ns = namespace(date=none, kind='', notes=[]) -%}
 
 {#- Müll: nächster Termin aus einem Sensor mit Datums-Attributen
@@ -16,7 +18,7 @@
     {%- set dt = strptime(key, '%Y-%m-%d', none) -%}
     {%- if dt is not none and value is string -%}
       {%- set day = dt.date() -%}
-      {%- if day >= today and (ns.date is none or day < ns.date) -%}
+      {%- if day >= first_day and (ns.date is none or day < ns.date) -%}
         {%- set ns.date = day -%}
         {%- set ns.kind = value -%}
       {%- endif -%}
@@ -28,7 +30,7 @@
 {%- if ns.date is none -%}
   {%- set dt = as_datetime(state_attr('calendar.muellkalender', 'start_time'), none) -%}
   {%- set msg = state_attr('calendar.muellkalender', 'message') -%}
-  {%- if dt is not none and msg is string and as_local(dt).date() >= today -%}
+  {%- if dt is not none and msg is string and as_local(dt).date() >= first_day -%}
     {%- set ns.date = as_local(dt).date() -%}
     {%- set ns.kind = msg -%}
   {%- endif -%}
@@ -49,7 +51,10 @@
   {%- set ns.notes = ns.notes + [[1, (state_attr('calendar.geburtstage', 'message') ~ '')[:24]]] -%}
 {%- endif -%}
 
-{%- set out = states('input_boolean.muell_rausgestellt') -%}
+{#- rausgestellt zählt nur, wenn der Schalter seit dem Vortag dieser Abholung geändert wurde -#}
+{%- set ob = states.input_boolean.muell_rausgestellt -%}
+{%- set out = ob.state if ob is not none and ns.date is not none
+      and as_local(ob.last_changed).date() >= ns.date - timedelta(days=1) else 'unknown' -%}
 {%- set pv = states('sensor.pv_ertrag_heute') -%}
 {%- set bat = states('sensor.akku_ladestand') -%}
 {{ {
