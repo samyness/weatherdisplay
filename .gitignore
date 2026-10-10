@@ -1,2 +1,6 @@
 build/
 
+
+# Persoenliche Zugangsdaten der Wetterstation
+Wetterstation/secrets.h
+docs/*.local.jinja

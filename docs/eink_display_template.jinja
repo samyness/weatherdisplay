@@ -1,0 +1,61 @@
+{#- Beispiel-Template für den Home-Assistant-Helfer "Eink Display" (Template-Sensor).
+    Ergebnis: kompaktes JSON (max. 255 Zeichen), das die Wetterstation liest:
+      w = Müll  {d: Datum, k: Müllart, t: Tage bis Abholung, o: rausgestellt 1/0/-1}
+      e = Energie {pv: kWh heute, b: Akku %}
+      n = Hinweise [[Priorität, Text], ...]  Priorität 1 = Info, 2 = Aufgabe, 3 = dringend
+    Alle Entity-IDs sind Beispiele und müssen an die eigene Installation angepasst werden.
+    Nicht vorhandene Entities stören nicht, der jeweilige Teil bleibt dann einfach leer. -#}
+{%- set today = now().date() -%}
+{%- set ns = namespace(date=none, kind='', notes=[]) -%}
+
+{#- Müll: nächster Termin aus einem Sensor mit Datums-Attributen
+    (z. B. "Waste Collection Schedule": 2026-10-15: Biomüll, 2026-10-22: Papier, Restmüll) -#}
+{%- set waste_sensor = 'sensor.abfallsensor' -%}
+{%- if states[waste_sensor] is not none -%}
+  {%- for key, value in states[waste_sensor].attributes.items() -%}
+    {%- set dt = strptime(key, '%Y-%m-%d', none) -%}
+    {%- if dt is not none and value is string -%}
+      {%- set day = dt.date() -%}
+      {%- if day >= today and (ns.date is none or day < ns.date) -%}
+        {%- set ns.date = day -%}
+        {%- set ns.kind = value -%}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endif -%}
+
+{#- Alternative/Reserve: Müllkalender (ICS der Gemeinde), Attribute message/start_time -#}
+{%- if ns.date is none -%}
+  {%- set dt = as_datetime(state_attr('calendar.muellkalender', 'start_time'), none) -%}
+  {%- set msg = state_attr('calendar.muellkalender', 'message') -%}
+  {%- if dt is not none and msg is string and as_local(dt).date() >= today -%}
+    {%- set ns.date = as_local(dt).date() -%}
+    {%- set ns.kind = msg -%}
+  {%- endif -%}
+{%- endif -%}
+
+{#- Hinweise, wichtigste zuerst -#}
+{%- set garage = 'binary_sensor.garagentor' -%}
+{%- if is_state(garage, 'on') and (now() - states[garage].last_changed).total_seconds() > 600 -%}
+  {%- set ns.notes = ns.notes + [[3, 'Garage offen']] -%}
+{%- endif -%}
+{%- if is_state('binary_sensor.enthaertung_salz_warnung', 'on') -%}
+  {%- set ns.notes = ns.notes + [[2, 'Salz nachfüllen']] -%}
+{%- endif -%}
+{%- if is_state('binary_sensor.saugroboter_behaelter_voll', 'on') -%}
+  {%- set ns.notes = ns.notes + [[2, 'Sauger leeren']] -%}
+{%- endif -%}
+{%- if is_state('calendar.geburtstage', 'on') -%}
+  {%- set ns.notes = ns.notes + [[1, (state_attr('calendar.geburtstage', 'message') ~ '')[:24]]] -%}
+{%- endif -%}
+
+{%- set out = states('input_boolean.muell_rausgestellt') -%}
+{%- set pv = states('sensor.pv_ertrag_heute') -%}
+{%- set bat = states('sensor.akku_ladestand') -%}
+{{ {
+  'w': {'d': ns.date.isoformat(), 'k': ns.kind[:28], 't': (ns.date - today).days,
+        'o': 1 if out == 'on' else 0 if out == 'off' else -1} if ns.date is not none else none,
+  'e': {'pv': pv | float | round(1) if is_number(pv) else none,
+        'b': bat | float | round(0) | int if is_number(bat) else none},
+  'n': ns.notes[:3]
+} | to_json(ensure_ascii=False) }}

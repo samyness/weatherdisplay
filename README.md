@@ -1,75 +1,143 @@
-# ESP8266 Weather display
+# e-Paper-Wetterstation
 
-Copy of Andrei7c4's Weatherdisplay, added support for Waveshare E-Ink display V2.
-Change to German language later.
+Wetteranzeige für einen **NodeMCU ESP8266** mit **Waveshare 7.5" e-Paper V2** (800 × 480, schwarz/weiß).
+Wetterdaten kommen von [OpenWeatherMap](https://openweathermap.org), dazu optional **Home Assistant**:
+nächste Müllabfuhr, PV-Ertrag und Akku, Hinweise wie „Salz nachfüllen“ oder Geburtstage.
 
-This is a simple weather display built with ESP8266 WiFi chip and E ink display. Weather data is gathered from [OpenWeatherMap](http://openweathermap.org) service. Additionally, the device’s internal temperature sensor reading is sent to [ThingSpeak](https://thingspeak.com) service.
+![Vorschau](docs/vorschau_tag.png)
 
-Most of the time the device stays in deep sleep mode, consuming only 18 µA. Update operation takes a few seconds, depending on WiFi router, DHCP server and internet connection speed. With 3000 mAh battery and update interval of 15 minutes, the device will last on a single charge for one and a half years.
+- Modernes Layout: große Temperatur, Info-Spalte, 24-Stunden-Verlauf mit Niederschlag, 4-Tage-Vorhersage
+- Schwarz heißt Handlungsbedarf: Müll-Karte und Hinweis-Chips werden nur dann invertiert
+- Volle Umlaute: ä ö ü Ä Ö Ü ß ° · – auch in Ortsnamen und Wetterbeschreibungen („Mäßiger Schnee“, „Jänner“)
+- Wettericons als Vektorgrafik, scharf in jeder Größe
+- Nachtpause, optional Deep Sleep für Akkubetrieb, verständliche Fehlermeldungen am Display
 
-## Building the software
-- Install [esp-open-sdk](https://github.com/pfalcon/esp-open-sdk)
-- Clone this repository
-- Build and flash the binary
+<img src="docs/vorschau_erledigt.png" width="49%"> <img src="docs/vorschau_nacht.png" width="49%">
+
+Links: Müll schon draußen, ein Info-Chip. Rechts: ohne Home Assistant, mit klassischer Info-Kachel.
+
+## Hardware
+
+| Teil | Hinweis |
+|------|---------|
+| NodeMCU 1.0 (ESP-12E), ESP8266 | Board „NodeMCU 1.0 (ESP-12E Module)“ |
+| Waveshare e-Paper Driver HAT Rev2.1 | Schalter **Display Config = B**, **Interface Config = 0** |
+| Waveshare 7.5" e-Paper **V2**, 800 × 480, s/w (GDEW075T7) | getestet |
+| Waveshare 7.5" e-Paper **(B) V2**, 800 × 480, s/w/rot (GDEW075Z08) | in `config.h` wählbar, ungetestet |
+
+### Verkabelung NodeMCU → HAT
+
+| HAT  | NodeMCU | Hinweis |
+|------|---------|---------|
+| VCC  | **3V3** | nicht VIN: bei 5 V erkennt der Pegelwandler die 3,3-V-Signale nicht zuverlässig |
+| GND  | GND     | |
+| DIN  | D7      | Hardware-SPI MOSI |
+| CLK  | D5      | Hardware-SPI SCK |
+| CS   | **D3**  | nicht D8: der HAT zieht CS hoch, auf D8 bootet der ESP8266 nicht |
+| DC   | D2      | |
+| RST  | D1      | |
+| BUSY | D6      | |
+
+Für **Deep Sleep** (Akkubetrieb) zusätzlich **D0 mit RST** verbinden.
+
+## Einrichtung
+
+1. **Arduino IDE** mit ESP8266-Boardpaket (getestet mit 3.1.2) installieren.
+2. Bibliotheken über den Bibliotheksverwalter installieren:
+   **GxEPD2**, **Adafruit GFX Library**, **U8g2_for_Adafruit_GFX**, **ArduinoJson** (Version 7).
+3. Kostenlosen API-Key bei [OpenWeatherMap](https://home.openweathermap.org/api_keys) anlegen
+   (ein neuer Key wird erst nach bis zu 2 Stunden aktiv).
+4. Im Ordner `Wetterstation/` die Datei `secrets_example.h` nach **`secrets.h`** kopieren und ausfüllen:
+   WLAN, API-Key, Ort und angezeigter Name. `secrets.h` steht in `.gitignore` und landet nie auf GitHub.
+5. `Wetterstation/Wetterstation.ino` öffnen, Board „NodeMCU 1.0 (ESP-12E Module)“ wählen, hochladen.
+
+Der serielle Monitor (115200 Baud) zeigt, was passiert. Befehle: `u` = sofort aktualisieren,
+`d` = Demo-Bild mit Beispieldaten, `h` = nur Home Assistant abfragen (z. B. um die Firewall zu prüfen).
+
+### Netzwerk
+
+Der ESP8266 kann nur **2,4 GHz** und **WPA2** (kein WPA3, kein 5 GHz). Hängt er in einem eigenen
+IoT-Netz, muss die Firewall Folgendes erlauben:
+
+| Ziel | Port | Wofür |
+|------|------|-------|
+| DNS-Server | 53 UDP/TCP | Namensauflösung |
+| `at.pool.ntp.org`, `pool.ntp.org` | 123 UDP | Uhrzeit |
+| `api.openweathermap.org` | 80 TCP | Wetterdaten |
+| Home Assistant, z. B. `192.168.1.10` | 8123 TCP | nur mit Home-Assistant-Anbindung |
+
+## Einstellungen (`config.h`)
+
+| Einstellung | Standard | Bedeutung |
+|-------------|----------|-----------|
+| `PANEL_V2_BW` / `PANEL_V2_3C` | `PANEL_V2_BW` | Display-Variante |
+| `DISPLAY_ROTATION` | `0` | `2` = um 180° gedreht |
+| `TIMEZONE` | MEZ/MESZ | Zeitzone mit Sommerzeit |
+| `UPDATE_INTERVAL_MIN` | `30` | Aktualisierung, ausgerichtet auf :00 und :30 |
+| `NIGHT_PAUSE_START` / `_END` | `0` / `5` | keine Aktualisierung zwischen 0 und 5 Uhr |
+| `USE_DEEP_SLEEP` | `false` | `true` nur mit Brücke D0 → RST |
+| `DEMO_MODE` | `false` | Beispieldaten ohne WLAN, zum Testen des Displays |
+
+## Home Assistant (optional)
+
+Empfohlen ist ein **Template-Helfer**, der Müll, PV/Akku und Hinweise in Home Assistant aufbereitet;
+die Station holt ihn mit einer einzigen Anfrage. Anleitung und fertiges Template:
+**[docs/home_assistant.md](docs/home_assistant.md)**.
+
+In `secrets.h`:
+
+```cpp
+#define HA_URL            "http://192.168.1.10:8123"  // mit http:// und IP, ".local" geht nicht
+#define HA_TOKEN          "..."                       // Profil -> Sicherheit -> Langlebige Zugriffstoken
+#define HA_DISPLAY_ENTITY "sensor.eink_display"
 ```
-$ git clone https://github.com/samyness/weatherdisplay
-$ cd weatherdisplay/app
-$ make all ESP_OPEN_SDK_PATH=/full/path/to/esp-open-sdk
-$ make flash ESP_OPEN_SDK_PATH=/full/path/to/esp-open-sdk ESPPORT=/serial/port/devpath
-```
 
-Originally the project was designed with [this display](http://www.pervasivedisplays.com/kits/mpicosys740), which is now obsolete. In addition to the old display, software currently supports [this display from Waveshare](https://www.waveshare.com/7.5inch-e-paper-hat.htm). Software is built for this display by default. To build software for the old display, add `CFLAGS=-DDISP_MODEL=PERVASIVE` to the end of `make all` command.
+Ohne Template-Sensor lassen sich auch bis zu vier einzelne Entities in der Info-Kachel anzeigen
+(`HA_ENTITIES`, Beispiele in `secrets_example.h`), z. B. ein Abfallkalender mit
+`{"Müll", "calendar.abfallkalender", "message", "start_time"}`.
 
-## Building the hardware
-Any ESP8266 based module with at least 1 MB flash and SPI pins, such as ESP-12E, can be used. Development boards, such as [NodeMCU-DEVKIT](https://github.com/nodemcu/nodemcu-devkit-v1.0) or similar, can be used too, but power consumption of these boards might not be as low.
+Bei einem ungültigen Token fragt die Station bis zum Neustart nicht mehr nach, damit Home Assistant
+die IP-Adresse nicht sperrt.
 
-Displays are connected to ESP8266 in the following way:
+## Umlaute
 
-| ESP8266        | Waveshare    | Pervasive Displays (obsolete) |
-| -------------- | ------------ | ----------------------------- |
-| GPIO5          |              | /EN                           |
-| GPIO4          | RST          | /BUSY                         |
-| HMISO / GPIO12 | /BUSY        | MISO                          |
-| HMOSI / GPIO13 | DIN          | MOSI                          |
-| HCS / GPIO15   | /CS          | /CS                           |
-| HSCLK / GPIO14 | CLK          | SCK                           |
+Die Standard-Schriften von Adafruit GFX kennen nur ASCII, deshalb fehlten früher Umlaute. Hier werden
+U8g2-Schriften mit vollem Latin-1-Zeichensatz verwendet, und alle Texte laufen durch `utf8Sanitize()`:
 
-### Notes about Waveshare dispay
-#### DIP switch configuration
+- UTF-8 (Normalfall) wird korrekt dargestellt.
+- Dateien, die versehentlich als „ANSI“ (Windows-1252) gespeichert wurden, werden erkannt und umgewandelt.
+- Zeichen außerhalb von Latin-1 werden ersetzt (č → c, ő → ö, „ “ → ", – → -), statt zu verschwinden.
 
-| DIP switch       | Position       |
-| ---------------- | -------------- |
-| Display Config   | B (Other)      |
-| Interface Config | 1 (3-line SPI) |
+Am besten trotzdem alle Dateien als UTF-8 speichern (Arduino IDE und VS Code machen das standardmäßig).
 
-#### Power consumption
-Waveshare display lacks dedicated enable pin. However, it can be put into sleep mode by executing a command. Ideally, in this mode the display consumes 8 µA. Unfortunately, it has been noticed that the current doesn't always stay at this level. After some time spent in the sleep mode, the current starts to grow and can reach up to 100 µA. The issue was discussed with Waveshare, but they were not able to provide a solution. As a workaround, a high side switch can be used on display's 3V3 line to completely turn off the display. Software uses GPIO5 to control the switch. Software will still execute the sleep command, so the switch can be left out, but power consumption will be higher in this case.
+## Fehlermeldungen am Display
 
-Please see [the schematics here](schematics.pdf).
+| Meldung | Lösung |
+|---------|--------|
+| Einrichtung nötig | `secrets.h` mit echten Werten füllen |
+| Keine WLAN-Verbindung | SSID/Passwort prüfen, 2,4 GHz und WPA2 nötig |
+| API-Key ungültig | Key prüfen; neue Keys brauchen bis zu 2 Stunden |
+| Ort nicht gefunden | `LOCATION_QUERY` als „Ort,AT“ schreiben oder Koordinaten verwenden |
 
-## Usage
-Device settings can be changed through the serial interface (115200/8-N-1). The following syntax should be used:
-```
-parameter:value<CR>
-```
-At least the following parameters must be set by the user:
- - ssid - WiFi SSID
- - pass - WiFi password
- - city - Weather and forecast are shown for that city ([check supported city names](http://openweathermap.org/find))
- - appid - [OpenWeatherMap API key](http://openweathermap.org/appid) 
+Kurze Aussetzer überbrückt die Station: Das letzte Wetterbild bleibt stehen, eine Meldung kommt erst nach
+ca. 30 Minuten ohne Erfolg.
 
-Additionally, [ThingSpeak](https://thingspeak.com) channel Write API Key can be set:
- - thingspeak
+## Projektaufbau
 
-If this key is not set, internal temperature will not be sent to ThingSpeak (it will still be indicated on the display though).
+| Datei | Inhalt |
+|-------|--------|
+| `Wetterstation/Wetterstation.ino` | Ablauf: WLAN, Zeit, Abruf, Zeichnen, Schlafen |
+| `config.h`, `secrets_example.h` | Einstellungen |
+| `owm_client.*`, `ha_client.*`, `home_format.cpp` | Datenabruf OpenWeatherMap / Home Assistant |
+| `forecast.*` | Tageswerte aus der 3-Stunden-Vorhersage |
+| `layout.*`, `icons.*`, `draw_utils.*` | Bildschirmaufbau und Grafik |
+| `fonts.*` | Schriften im Flash, erzeugt mit `tools/make_fonts.py` |
+| `text_de.*` | deutsche Texte, UTF-8-Behandlung |
+| `legacy/` | ursprüngliche esp-open-sdk-Firmware (nicht mehr gepflegt) |
 
-The following user interface options are available:
- - chart:0 - [No forecast charts (icons only)](gui/chart0.png)
- - chart:1 - [Forecast chart for the next 24 hours](gui/chart1.png)
- - chart:2 - [Forecast chart for the next five days](gui/chart2.png)
- - chart:3 - [Both forecast charts](gui/chart3.png)
+## Herkunft und Lizenz
 
-Please see the [config.c](app/src/config.c) file for additional supported parameters.
-
-***
-[![](http://img.youtube.com/vi/9eWtP8rnsAE/sddefault.jpg)](https://youtu.be/9eWtP8rnsAE)
+Basiert auf dem [weatherdisplay](https://github.com/andrei7c4/weatherdisplay) von Andrei Mehilainen
+(MIT-Lizenz, siehe `LICENSE.txt`); dessen Firmware liegt unverändert in `legacy/`. Die Arduino-Version
+wurde neu geschrieben. Schriften: FreeUniversal und Logisoso aus [U8g2](https://github.com/olikraus/u8g2)
+(SIL Open Font License).
